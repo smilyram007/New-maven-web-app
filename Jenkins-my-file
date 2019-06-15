@@ -1,0 +1,33 @@
+node{
+    stage ("GIT CHECKOUT"){
+        git credentialsId: '5abe8376-91f1-4340-b690-cd7d33f2d518', url: 'https://github.com/smilyram007/New-maven-web-app.git'
+        
+    }
+    
+    stage ("MAVEN BUILD"){
+        def maven = tool name:"maven 3.6.1", type:"maven"
+        sh "${maven}/bin/mvn clean package"
+    }
+    
+    stage ("DOCKER BUILD"){
+    sh "docker build -t smilyram001/maven_web_app ."
+    }
+    
+    stage ("DOCKER IMAGE DEPLOYMENT"){
+        withCredentials([string(credentialsId: 'password', variable: 'Docker_Hub_password')]) {
+       sh "docker login -u smilyram001 -p ${Docker_Hub_password}"
+       sh "docker push smilyram001/maven_web_app"
+
+    }
+    
+    stage ("DOCKER IMAGE DEPLOYMENT / CONTAINER CREATION"){
+        def docker = 'docker run -d -p 9090:9090 --name maven-web-app smilyram001/maven_web_app'
+        sshagent(['DOCKER_SERVER']){
+        sh "ssh -o StrictHostkeyChecking=no ubuntu@172.31.5.251 docker stop maven-web-app || true"
+        sh "ssh ubuntu@172.31.5.251 docker rm maven-web-app || true"
+        sh 'ssh ubuntu@172.31.5.251 docker rmi -f $(docker images -q) || true'
+        sh "ssh ubuntu@172.31.5.251 ${docker}"
+        }
+    }
+    }
+}
